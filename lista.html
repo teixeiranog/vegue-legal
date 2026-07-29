@@ -82,11 +82,17 @@
 <div class="itens" id="itens"></div>
 
 <div class="rodape" id="rodape" hidden>
-  Não tem o Vegue? <a href="https://apps.apple.com/app/vegue">Baixe o app</a>
+  Não tem o Vegue? <a id="baixar" href="#">Baixe o app</a>
 </div>
 
 <script>
   const API = 'https://pglkriqqjkehcrgjjhxn.supabase.co/functions/v1/lista-publica';
+
+  // Preencher no dia do lançamento. Enquanto estiverem vazios, o convite para
+  // baixar simplesmente não aparece — melhor não convidar do que mandar a
+  // pessoa para uma página 404 no primeiro contato dela com o Vegue.
+  const LOJA_IOS = '';      // https://apps.apple.com/br/app/vegue/id0000000000
+  const LOJA_ANDROID = '';  // https://play.google.com/store/apps/details?id=com.vegue
   const codigo = new URLSearchParams(location.search).get('id') || location.hash.slice(1);
 
   const $ = id => document.getElementById(id);
@@ -145,7 +151,13 @@
     const botao = $('abrir');
     botao.href = link;
     botao.hidden = false;
-    $('rodape').hidden = false;
+
+    const ehIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const loja = ehIOS ? LOJA_IOS : LOJA_ANDROID;
+    if (loja) {
+      $('baixar').href = loja;
+      $('rodape').hidden = false;
+    }
 
     // Sem redirecionamento automático, de propósito. Quem recebe um link de
     // lista compartilhada normalmente AINDA NÃO tem o app — e tentar abrir
