@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFD600">
+<title>Lista de compras · Vegue</title>
+<meta property="og:title" content="Lista de compras no Vegue">
+<meta property="og:description" content="Abra para ver a lista e comprar junto.">
+<style>
+  /* Esta página mora no GitHub Pages e não no Supabase de propósito: o
+     Supabase devolve toda edge function como text/plain + nosniff, mesmo
+     declarando text/html, então quem recebia o link via o código-fonte da
+     página em vez da lista. Aqui ela é estática e busca os dados por JSON. */
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --tinta:#0A0A0A; --tinta-2:#6E6E68; --tinta-3:#A3A39C;
+    --papel:#FFFFFF; --papel-2:#F5F5F2; --regua:#EDEDE8; --marca:#FFD600;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--tinta:#F2F2EC;--tinta-2:#A3A39C;--tinta-3:#6E6E68;
+          --papel:#111110;--papel-2:#1C1C1A;--regua:#2A2A27}
+  }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--papel);color:var(--tinta);
+    max-width:480px;margin:0 auto;padding:0 20px 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .topo{padding:48px 0 8px}
+  .marca{
+    font-size:12px;font-weight:800;letter-spacing:.18em;
+    color:var(--tinta-3);margin-bottom:14px;
+  }
+  h1{font-size:27px;font-weight:800;line-height:1.15;letter-spacing:-.02em}
+  .quantos{margin-top:6px;font-size:14px;color:var(--tinta-2)}
+
+  .abrir{
+    display:block;width:100%;background:var(--marca);color:#0A0A0A;
+    font:inherit;font-weight:800;font-size:16px;text-align:center;
+    padding:17px;border:none;border-radius:16px;margin:22px 0 6px;
+    cursor:pointer;text-decoration:none;
+  }
+  .abrir:active{transform:translateY(1px)}
+  .dica{
+    display:none;text-align:center;color:var(--tinta-2);font-size:13px;
+    line-height:1.5;margin:10px 0 0;
+  }
+  .dica.on{display:block}
+
+  .itens{margin-top:22px}
+  .item{
+    display:flex;align-items:center;gap:13px;
+    padding:14px 0;border-bottom:1px solid var(--regua);
+  }
+  .qtd{
+    min-width:38px;height:38px;flex:none;background:var(--papel-2);
+    border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:13px;
+  }
+  .nome{flex:1;font-size:15px;line-height:1.35}
+  .preco{font-size:14px;color:var(--tinta-2);font-weight:600;white-space:nowrap}
+
+  .estado{padding:56px 0;text-align:center;color:var(--tinta-2);font-size:15px;line-height:1.6}
+  .rodape{margin-top:30px;text-align:center;font-size:13px;color:var(--tinta-3);line-height:1.6}
+  .rodape a{color:var(--tinta);font-weight:700;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <div class="marca">VEGUE</div>
+  <h1 id="titulo">Carregando…</h1>
+  <div class="quantos" id="quantos"></div>
+</div>
+
+<a class="abrir" id="abrir" href="#" hidden>Abrir no Vegue</a>
+<p class="dica" id="dica">
+  Não abriu? Toque em <strong>Abrir no Vegue</strong> acima.<br>
+  Se você ainda não tem o app, instale primeiro e toque no link de novo.
+</p>
+
+<div class="itens" id="itens"></div>
+
+<div class="rodape" id="rodape" hidden>
+  Não tem o Vegue? <a href="https://apps.apple.com/app/vegue">Baixe o app</a>
+</div>
+
+<script>
+  const API = 'https://pglkriqqjkehcrgjjhxn.supabase.co/functions/v1/lista-publica';
+  const codigo = new URLSearchParams(location.search).get('id') || location.hash.slice(1);
+
+  const $ = id => document.getElementById(id);
+  const brl = v => Number(v).toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
+
+  function erro(texto) {
+    $('titulo').textContent = 'Lista indisponível';
+    $('quantos').textContent = '';
+    $('itens').innerHTML = '<p class="estado">' + texto + '</p>';
+  }
+
+  // O preço vem como texto digitado na lista ("R$ 12,90"), não como número.
+  function precoDe(item) {
+    if (item.preco == null || item.preco === '') return null;
+    const n = parseFloat(String(item.preco).replace(/[^0-9,.-]/g, '').replace(',', '.'));
+    return isNaN(n) || n <= 0 ? null : n * (item.quantidade || 1);
+  }
+
+  async function carregar() {
+    if (!codigo || !/^[a-zA-Z0-9-]{1,64}$/.test(codigo)) {
+      return erro('Este link está incompleto. Peça para mandarem de novo.');
+    }
+    let dados;
+    try {
+      const r = await fetch(API + '?id=' + encodeURIComponent(codigo));
+      if (r.status === 404) return erro('Esta lista não existe mais, ou o link expirou.');
+      if (!r.ok) throw new Error(r.status);
+      dados = await r.json();
+    } catch (_) {
+      return erro('Não consegui carregar a lista. Verifique sua conexão e tente de novo.');
+    }
+
+    document.title = dados.nome + ' · Vegue';
+    $('titulo').textContent = dados.nome;
+
+    const itens = dados.itens || [];
+    $('quantos').textContent = itens.length === 1 ? '1 item' : itens.length + ' itens';
+
+    $('itens').innerHTML = itens.length === 0
+      ? '<p class="estado">Esta lista ainda está vazia.</p>'
+      : itens.map(function (i) {
+          const total = precoDe(i);
+          const div = document.createElement('div');
+          div.className = 'item';
+          div.innerHTML =
+            '<div class="qtd"></div><span class="nome"></span>' +
+            (total ? '<span class="preco"></span>' : '');
+          div.querySelector('.qtd').textContent = (i.quantidade || 1) + 'x';
+          // textContent, nunca innerHTML: o nome vem de quem criou a lista.
+          div.querySelector('.nome').textContent = i.nome;
+          if (total) div.querySelector('.preco').textContent = brl(total);
+          return div.outerHTML;
+        }).join('');
+
+    const link = 'vegue://lista/' + codigo;
+    const botao = $('abrir');
+    botao.href = link;
+    botao.hidden = false;
+    $('rodape').hidden = false;
+
+    botao.addEventListener('click', function () {
+      setTimeout(function () { $('dica').classList.add('on'); }, 1800);
+    });
+
+    // Tentativa automática: se o app estiver instalado ele assume o link.
+    // Só uma vez, e sem forçar depois — insistir em quem não tem o app só
+    // gera aviso de erro do sistema em cima da página.
+    setTimeout(function () { location.href = link; }, 350);
+  }
+
+  carregar();
+</script>
+</body>
+</html>
