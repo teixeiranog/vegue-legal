@@ -76,8 +76,7 @@
 
 <a class="abrir" id="abrir" href="#" hidden>Abrir no Vegue</a>
 <p class="dica" id="dica">
-  Não abriu? Toque em <strong>Abrir no Vegue</strong> acima.<br>
-  Se você ainda não tem o app, instale primeiro e toque no link de novo.
+  Não abriu? Instale o Vegue e toque no link de novo.
 </p>
 
 <div class="itens" id="itens"></div>
@@ -148,14 +147,14 @@
     botao.hidden = false;
     $('rodape').hidden = false;
 
+    // Sem redirecionamento automático, de propósito. Quem recebe um link de
+    // lista compartilhada normalmente AINDA NÃO tem o app — e tentar abrir
+    // vegue:// nesse caso dispara "não é possível abrir a página porque o
+    // endereço é inválido" por cima da lista. O primeiro contato de um usuário
+    // novo com o Vegue não pode ser uma caixa de erro do sistema.
     botao.addEventListener('click', function () {
       setTimeout(function () { $('dica').classList.add('on'); }, 1800);
     });
-
-    // Tentativa automática: se o app estiver instalado ele assume o link.
-    // Só uma vez, e sem forçar depois — insistir em quem não tem o app só
-    // gera aviso de erro do sistema em cima da página.
-    setTimeout(function () { location.href = link; }, 350);
   }
 
   carregar();
